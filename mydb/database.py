@@ -1,77 +1,77 @@
 import os
 
 
-class BaseDatos:
-    """Base de datos clave-valor de solo texto (append-only + índice en memoria).
+class Database:
+    """Plain-text key-value database (append-only log + in-memory index).
 
-    Formato de cada línea del fichero:  clave,valor
-    - La clave no puede estar vacía ni contener ',' ni saltos de línea.
-    - El valor no puede contener saltos de línea (sí puede contener comas).
-    - El fichero solo se añade (append): nunca se edita ni se borra una línea.
-    - Si una clave aparece varias veces, vale la última línea.
+    File format, one line per write:  key,value
+    - The key cannot be empty or contain ',' or newlines.
+    - The value cannot contain newlines (commas are allowed).
+    - The file is only ever appended to: lines are never edited or removed.
+    - If a key appears several times, the last line wins.
 
-    El índice (self.index) es un dict:  clave -> byte offset de su última línea.
+    The index (self.index) is a dict:  key -> byte offset of its last line.
     """
 
-    def __init__(self, ruta="datos.db"):
-        self.ruta = ruta
+    def __init__(self, path="data.db"):
+        self.path = path
         self.index = {}
         self.rebuild_index()
 
-    # ---------- escritura ----------
+    # ---------- writing ----------
     def set(self, key, value):
-        """Añade una línea 'clave,valor' al final del fichero y actualiza el índice."""
-        self._validar(key, value)
-        linea = f"{key},{value}\n".encode("utf-8")
-        with open(self.ruta, "ab") as f:
+        """Append a 'key,value' line to the file and update the index."""
+        self._validate(key, value)
+        line = f"{key},{value}\n".encode("utf-8")
+        with open(self.path, "ab") as f:
             f.seek(0, os.SEEK_END)
-            offset = f.tell()  # posición donde empieza la línea que vamos a escribir
-            f.write(linea)
+            offset = f.tell()  # where the line we are about to write starts
+            f.write(line)
         self.index[key] = offset
 
-    # ---------- lectura ----------
+    # ---------- reading ----------
     def get(self, key):
-        """Devuelve el valor de la clave (o None). Usa el índice para saltar directo."""
+        """Return the value for key (or None). Uses the index to jump straight to it."""
         offset = self.index.get(key)
         if offset is None:
             return None
-        with open(self.ruta, "rb") as f:
+        with open(self.path, "rb") as f:
             f.seek(offset)
-            linea = f.readline().decode("utf-8").rstrip("\n")
-        return linea.split(",", 1)[1]
+            line = f.readline().decode("utf-8").rstrip("\n")
+        return line.split(",", 1)[1]
 
-    def get_lineal(self, key):
-        """Igual que get, pero escaneando todo el fichero (sin índice).
+    def get_linear(self, key):
+        """Same as get, but scanning the whole file (no index).
 
-        Sirve para comparar rendimiento y para verificar que el índice es correcto.
+        Useful to compare performance and to check that the index is correct.
         """
-        resultado = None
-        if not os.path.exists(self.ruta):
+        result = None
+        if not os.path.exists(self.path):
             return None
-        with open(self.ruta, "r", encoding="utf-8") as f:
-            for linea in f:
-                k, v = linea.rstrip("\n").split(",", 1)
+        with open(self.path, "r", encoding="utf-8") as f:
+            for line in f:
+                k, v = line.rstrip("\n").split(",", 1)
                 if k == key:
-                    resultado = v  # seguimos leyendo: la última ocurrencia gana
-        return resultado
+                    result = v  # keep reading: the last occurrence wins
+        return result
 
-    # ---------- índice ----------
+    # ---------- index ----------
     def rebuild_index(self):
-        """Reconstruye el índice leyendo el fichero (se llama al arrancar)."""
+        """Rebuild the index by reading the file (called on startup)."""
         self.index = {}
-        if not os.path.exists(self.ruta):
+        if not os.path.exists(self.path):
             return
         offset = 0
-        with open(self.ruta, "rb") as f:
-            for linea in f:
-                clave = linea.decode("utf-8").split(",", 1)[0]
-                self.index[clave] = offset
-                offset += len(linea)  # en bytes, no en caracteres
+        with open(self.path, "rb") as f:
+            for line in f:
+                key = line.decode("utf-8").split(",", 1)[0]
+                self.index[key] = offset
+                offset += len(line)  # bytes, not characters
 
-    # ---------- utilidades ----------
+    # ---------- helpers ----------
     @staticmethod
-    def _validar(key, value):
+    def _validate(key, value):
         if not key or "," in key or "\n" in key:
-            raise ValueError("Clave inválida: vacía, con ',' o con salto de línea")
+            raise ValueError("Invalid key: empty, or contains ',' or a newline")
         if "\n" in value:
-            raise ValueError("El valor no puede contener saltos de línea")
+            raise ValueError("The value cannot contain newlines")
