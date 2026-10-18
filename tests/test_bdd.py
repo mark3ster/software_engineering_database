@@ -1,99 +1,99 @@
 import pytest
-from mydb.database import BaseDatos
+from mydb.database import Database
 
 
 @pytest.fixture
 def db(tmp_path):
-    """Base de datos temporal: cada test usa un fichero nuevo y limpio."""
-    return BaseDatos(str(tmp_path / "test.db"))
+    """Temporary database: each test gets a fresh, empty file."""
+    return Database(str(tmp_path / "test.db"))
 
 
-def test_set_y_get(db):
+def test_set_and_get(db):
     # Arrange
-    db.set("tema", "oscuro")
+    db.set("theme", "dark")
 
     # Act
-    resultado = db.get("tema")
+    result = db.get("theme")
 
     # Assert
-    assert resultado == "oscuro"
+    assert result == "dark"
 
 
-def test_get_clave_inexistente(db):
+def test_get_missing_key(db):
     # Act
-    resultado = db.get("nada")
+    result = db.get("missing")
 
     # Assert
-    assert resultado is None
+    assert result is None
 
 
-def test_sobrescribir_devuelve_el_ultimo(db):
+def test_overwrite_returns_last_value(db):
     # Arrange
-    db.set("idioma", "español")
-    db.set("idioma", "inglés")
+    db.set("language", "spanish")
+    db.set("language", "english")
 
     # Act
-    resultado = db.get("idioma")
+    result = db.get("language")
 
     # Assert
-    assert resultado == "inglés"
+    assert result == "english"
 
 
-def test_valor_con_comas(db):
+def test_value_with_commas(db):
     # Arrange
-    db.set("lista", "a,b,c")
+    db.set("list", "a,b,c")
 
     # Act
-    resultado = db.get("lista")
+    result = db.get("list")
 
     # Assert
-    assert resultado == "a,b,c"
+    assert result == "a,b,c"
 
 
-def test_persistencia_con_rebuild_index(tmp_path):
-    # Arrange: escribimos con una instancia
-    ruta = str(tmp_path / "p.db")
-    BaseDatos(ruta).set("a", "1")
+def test_persistence_with_rebuild_index(tmp_path):
+    # Arrange: write with one instance
+    path = str(tmp_path / "p.db")
+    Database(path).set("a", "1")
 
-    # Act: una instancia nueva simula reiniciar el programa
-    nueva = BaseDatos(ruta)
+    # Act: a new instance simulates restarting the program
+    reopened = Database(path)
 
     # Assert
-    assert nueva.get("a") == "1"
+    assert reopened.get("a") == "1"
 
 
-def test_rebuild_index_con_acentos_y_sobrescritura(tmp_path):
+def test_rebuild_index_with_accents_and_overwrite(tmp_path):
     # Arrange
-    ruta = str(tmp_path / "r.db")
-    d = BaseDatos(ruta)
-    d.set("x", "ñandú")
-    d.set("y", "2")
-    d.set("x", "3")
+    path = str(tmp_path / "r.db")
+    db = Database(path)
+    db.set("x", "ñandú")
+    db.set("y", "2")
+    db.set("x", "3")
 
     # Act
-    nueva = BaseDatos(ruta)
+    reopened = Database(path)
 
     # Assert
-    assert nueva.get("x") == "3"
-    assert nueva.get("y") == "2"
+    assert reopened.get("x") == "3"
+    assert reopened.get("y") == "2"
 
 
-def test_get_con_indice_igual_a_lineal(db):
+def test_indexed_get_matches_linear_get(db):
     # Arrange
     db.set("x", "ñandú")
     db.set("y", "2")
     db.set("x", "3")
 
     # Act / Assert
-    assert db.get("x") == db.get_lineal("x") == "3"
+    assert db.get("x") == db.get_linear("x") == "3"
 
 
-@pytest.mark.parametrize("clave", ["a,b", "", "a\nb"])
-def test_clave_invalida(db, clave):
+@pytest.mark.parametrize("key", ["a,b", "", "a\nb"])
+def test_invalid_key(db, key):
     with pytest.raises(ValueError):
-        db.set(clave, "valor")
+        db.set(key, "value")
 
 
-def test_valor_con_salto_de_linea_invalido(db):
+def test_value_with_newline_is_invalid(db):
     with pytest.raises(ValueError):
-        db.set("clave", "linea1\nlinea2")
+        db.set("key", "line1\nline2")
