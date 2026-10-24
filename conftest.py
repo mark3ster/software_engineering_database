@@ -1,0 +1,1 @@
+# Hace que pytest añada la raíz del proyecto al path para poder importar `mydb`.
