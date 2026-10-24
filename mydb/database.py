@@ -27,14 +27,19 @@ class Database:
             f.seek(0, os.SEEK_END)
             offset = f.tell()  # where the line we are about to write starts
             f.write(line)
+            f.flush()
+            os.fsync(f.fileno())
         self.index[key] = offset
 
     def delete(self, key):
+        """Append a tombstone line (just the key, no comma) and drop the key from the index."""
         if key not in self.index:
             return
         line = f"{key}\n".encode("utf-8")
         with open(self.path, "ab") as f:
             f.write(line)
+            f.flush()
+            os.fsync(f.fileno())
         del self.index[key]
 
     # ---------- reading ----------
@@ -49,6 +54,7 @@ class Database:
         return line.split(",", 1)[1]
 
     def get_linear(self, key):
+        """Return the value for key (or None) by scanning the whole file. Used to check get()."""
         result = None
         if not os.path.exists(self.path):
             return None
@@ -63,7 +69,7 @@ class Database:
                     result = None
         return result
 
-       # ---------- index ----------
+    # ---------- index ----------
     def rebuild_index(self):
         """Rebuild the index by reading the file (called on startup)."""
         self.index = {}
@@ -77,7 +83,7 @@ class Database:
                     key = text.split(",", 1)[0]
                     self.index[key] = offset
                 else:
-                    # tombstone: la clave fue borrada
+                    # tombstone: the key was deleted
                     self.index.pop(text, None)
                 offset += len(line)  # bytes, not characters
 
