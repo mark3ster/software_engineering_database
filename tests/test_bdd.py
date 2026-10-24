@@ -39,6 +39,20 @@ def test_overwrite_returns_last_value(db):
     # Assert
     assert result == "english"
 
+# Issue #10 new test 
+def test_last_occurrence_wins_after_reopening(tmp_path):
+    # Arrange
+    path = str(tmp_path / "l.db")
+    db = Database(path)
+    db.set("k", "first")
+    db.set("k", "second")
+
+    # Act
+    reopened = Database(path)
+
+    # Assert
+    assert reopened.get("k") == "second"
+    assert reopened.get_linear("k") == "second"
 
 def test_value_with_commas(db):
     # Arrange
