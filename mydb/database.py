@@ -29,6 +29,14 @@ class Database:
             f.write(line)
         self.index[key] = offset
 
+    def delete(self, key):
+        if key not in self.index:
+            return
+        line = f"{key}\n".encode("utf-8")
+        with open(self.path, "ab") as f:
+            f.write(line)
+        del self.index[key]
+
     # ---------- reading ----------
     def get(self, key):
         """Return the value for key (or None). Uses the index to jump straight to it."""
@@ -41,21 +49,21 @@ class Database:
         return line.split(",", 1)[1]
 
     def get_linear(self, key):
-        """Same as get, but scanning the whole file (no index).
-
-        Useful to compare performance and to check that the index is correct.
-        """
         result = None
         if not os.path.exists(self.path):
             return None
         with open(self.path, "r", encoding="utf-8") as f:
             for line in f:
-                k, v = line.rstrip("\n").split(",", 1)
-                if k == key:
-                    result = v  # keep reading: the last occurrence wins
+                text = line.rstrip("\n")
+                if "," in text:
+                    k, v = text.split(",", 1)
+                    if k == key:
+                        result = v
+                elif text == key:   # tombstone
+                    result = None
         return result
 
-    # ---------- index ----------
+       # ---------- index ----------
     def rebuild_index(self):
         """Rebuild the index by reading the file (called on startup)."""
         self.index = {}
@@ -64,8 +72,13 @@ class Database:
         offset = 0
         with open(self.path, "rb") as f:
             for line in f:
-                key = line.decode("utf-8").split(",", 1)[0]
-                self.index[key] = offset
+                text = line.decode("utf-8").rstrip("\n")
+                if "," in text:
+                    key = text.split(",", 1)[0]
+                    self.index[key] = offset
+                else:
+                    # tombstone: la clave fue borrada
+                    self.index.pop(text, None)
                 offset += len(line)  # bytes, not characters
 
     # ---------- helpers ----------
