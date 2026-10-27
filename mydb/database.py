@@ -1,5 +1,7 @@
 import os
 
+TOMBSTONE = "__DELETED__"
+
 
 class Database:
     """Plain-text key-value database (append-only log + in-memory index).
@@ -9,6 +11,7 @@ class Database:
     - The value cannot contain newlines (commas are allowed).
     - The file is only ever appended to: lines are never edited or removed.
     - If a key appears several times, the last line wins.
+    - Deleting a key appends a tombstone line:  key,__DELETED__
 
     The index (self.index) is a dict:  key -> byte offset of its last line.
     """
@@ -21,25 +24,16 @@ class Database:
     # ---------- writing ----------
     def set(self, key, value):
         """Append a 'key,value' line to the file and update the index."""
-        self._validate(key, value)
-        line = f"{key},{value}\n".encode("utf-8")
-        with open(self.path, "ab") as f:
-            f.seek(0, os.SEEK_END)
-            offset = f.tell()  # where the line we are about to write starts
-            f.write(line)
-            f.flush()
-            os.fsync(f.fileno())
-        self.index[key] = offset
+        self._validate_key(key)
+        self._validate_value(value)
+        self.index[key] = self._append(key, value)
 
     def delete(self, key):
-        """Append a tombstone line (just the key, no comma) and drop the key from the index."""
+        """Delete a key by appending a tombstone line (the log is never edited)."""
+        self._validate_key(key)
         if key not in self.index:
             return
-        line = f"{key}\n".encode("utf-8")
-        with open(self.path, "ab") as f:
-            f.write(line)
-            f.flush()
-            os.fsync(f.fileno())
+        self._append(key, TOMBSTONE)
         del self.index[key]
 
     # ---------- reading ----------
@@ -54,20 +48,19 @@ class Database:
         return line.split(",", 1)[1]
 
     def get_linear(self, key):
-        """Return the value for key (or None) by scanning the whole file. Used to check get()."""
+        """Same as get, but scanning the whole file (no index).
+
+        Useful to compare performance and to check that the index is correct.
+        """
         result = None
         if not os.path.exists(self.path):
             return None
         with open(self.path, "r", encoding="utf-8") as f:
             for line in f:
-                text = line.rstrip("\n")
-                if "," in text:
-                    k, v = text.split(",", 1)
-                    if k == key:
-                        result = v
-                elif text == key:   # tombstone
-                    result = None
-        return result
+                k, v = line.rstrip("\n").split(",", 1)
+                if k == key:
+                    result = v  # keep reading: the last occurrence wins
+        return None if result == TOMBSTONE else result
 
     # ---------- index ----------
     def rebuild_index(self):
@@ -78,19 +71,31 @@ class Database:
         offset = 0
         with open(self.path, "rb") as f:
             for line in f:
-                text = line.decode("utf-8").rstrip("\n")
-                if "," in text:
-                    key = text.split(",", 1)[0]
-                    self.index[key] = offset
+                key, value = line.decode("utf-8").rstrip("\n").split(",", 1)
+                if value == TOMBSTONE:
+                    self.index.pop(key, None)
                 else:
-                    # tombstone: the key was deleted
-                    self.index.pop(text, None)
+                    self.index[key] = offset
                 offset += len(line)  # bytes, not characters
 
     # ---------- helpers ----------
+    def _append(self, key, value):
+        """Append one line to the file and return the offset where it starts."""
+        line = f"{key},{value}\n".encode("utf-8")
+        with open(self.path, "ab") as f:
+            f.seek(0, os.SEEK_END)
+            offset = f.tell()
+            f.write(line)
+        return offset
+
     @staticmethod
-    def _validate(key, value):
+    def _validate_key(key):
         if not key or "," in key or "\n" in key:
             raise ValueError("Invalid key: empty, or contains ',' or a newline")
+
+    @staticmethod
+    def _validate_value(value):
         if "\n" in value:
             raise ValueError("The value cannot contain newlines")
+        if value == TOMBSTONE:
+            raise ValueError(f"'{TOMBSTONE}' is a reserved value")
