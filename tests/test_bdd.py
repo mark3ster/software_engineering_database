@@ -97,3 +97,54 @@ def test_invalid_key(db, key):
 def test_value_with_newline_is_invalid(db):
     with pytest.raises(ValueError):
         db.set("key", "line1\nline2")
+
+
+def test_reserved_value_is_invalid(db):
+    with pytest.raises(ValueError):
+        db.set("key", "__DELETED__")
+
+
+def test_delete_removes_key(db):
+    # Arrange
+    db.set("a", "1")
+
+    # Act
+    db.delete("a")
+
+    # Assert
+    assert db.get("a") is None
+    assert db.get_linear("a") is None
+
+
+def test_delete_persists_after_restart(tmp_path):
+    # Arrange
+    path = str(tmp_path / "d.db")
+    first = Database(path)
+    first.set("a", "1")
+    first.delete("a")
+
+    # Act
+    reopened = Database(path)
+
+    # Assert
+    assert reopened.get("a") is None
+
+
+def test_set_after_delete_restores_key(db):
+    # Arrange
+    db.set("a", "1")
+    db.delete("a")
+
+    # Act
+    db.set("a", "2")
+
+    # Assert
+    assert db.get("a") == "2"
+
+
+def test_delete_missing_key_does_nothing(db):
+    # Act
+    db.delete("missing")
+
+    # Assert
+    assert db.get("missing") is None
