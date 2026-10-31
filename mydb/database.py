@@ -18,7 +18,7 @@ class Database:
         self.index = {}
         self.rebuild_index()
 
-    # ---------- writing ----------
+    # writing 
     def set(self, key, value):
         """Append a 'key,value' line to the file and update the index."""
         self._validate(key, value)
@@ -37,7 +37,7 @@ class Database:
             f.write(line)
         del self.index[key]
 
-    # ---------- reading ----------
+    #reading 
     def get(self, key):
         """Return the value for key (or None). Uses the index to jump straight to it."""
         offset = self.index.get(key)
@@ -63,7 +63,7 @@ class Database:
                     result = None
         return result
 
-       # ---------- index ----------
+       # index
     def rebuild_index(self):
         """Rebuild the index by reading the file (called on startup)."""
         self.index = {}
@@ -81,7 +81,7 @@ class Database:
                     self.index.pop(text, None)
                 offset += len(line)  # bytes, not characters
 
-    # ---------- helpers ----------
+    # helpers 
     @staticmethod
     def _validate(key, value):
         if not key or "," in key or "\n" in key:
