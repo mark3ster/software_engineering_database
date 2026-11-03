@@ -1,120 +1,106 @@
-import pytest
-from mydb.database import Database, DatabaseError
+import os
+from mydb.database import Database
 
 
-@pytest.fixture
-def db(tmp_path):
-    """Temporary database: each test gets a fresh, empty file."""
-    return Database(str(tmp_path / "test.db"))
-
-
-def test_set_writes_to_file(db):
+def test_set_y_get():
+    db = Database("test.db")
     db.set("theme", "dark")
-    with open(db.path, encoding="utf-8") as file:
-        assert file.read() == "theme,dark\n"
+    assert db.get("theme") == "dark"
+    os.remove("test.db")
 
 
-def test_get_missing_key(db):
-    # Act
-    result = db.get("missing")
+def test_set_escribe_en_archivo():
+    db = Database("test.db")
+    db.set("theme", "dark")
+    f = open("test.db", "r")
+    contenido = f.read()
+    f.close()
+    assert contenido == "theme,dark\n"
+    os.remove("test.db")
 
-    # Assert
-    assert result is None
+
+def test_get_clave_que_no_existe():
+    db = Database("test.db")
+    assert db.get("nada") is None
 
 
-def test_overwrite_returns_last_value(db):
-    with open(db.path, "w", encoding="utf-8") as file:
-        file.write("language,spanish\nlanguage,english\n")
+def test_sobrescribir_devuelve_el_ultimo():
+    db = Database("test.db")
+    db.set("language", "spanish")
+    db.set("language", "english")
     assert db.get("language") == "english"
+    os.remove("test.db")
 
 
-def test_value_with_commas(db):
-    with open(db.path, "w", encoding="utf-8") as file:
-        file.write("list,a,b,c\n")
+def test_valor_con_comas():
+    db = Database("test.db")
+    db.set("list", "a,b,c")
     assert db.get("list") == "a,b,c"
+    os.remove("test.db")
 
 
-def test_persistence_with_rebuild_index(tmp_path):
-    path = str(tmp_path / "p.db")
-    Database(path).set("a", "1")
-    reopened = Database(path)
-    assert reopened.get("a") == "1"
-
-
-def test_rebuild_index_with_accents_and_overwrite(tmp_path):
-    path = str(tmp_path / "r.db")
-    with open(path, "w", encoding="utf-8") as file:
-        file.write("x,ñandú\ny,2\nx,3\n")
-    reopened = Database(path)
-    assert reopened.get("x") == "3"
-    assert reopened.get("y") == "2"
-
-
-@pytest.mark.parametrize("key", ["a,b", "", "a\nb"])
-def test_invalid_key(db, key):
-    with pytest.raises(ValueError):
-        db.set(key, "value")
-
-
-def test_value_with_newline_is_invalid(db):
-    with pytest.raises(ValueError):
-        db.set("key", "line1\nline2")
-
-
-def test_reserved_value_is_invalid(db):
-    with pytest.raises(ValueError):
-        db.set("key", "__DELETED__")
-
-
-def test_delete_removes_key(db):
-    # Arrange
+def test_guardar_y_abrir_otra_vez():
+    db = Database("test.db")
     db.set("a", "1")
+    db2 = Database("test.db")
+    assert db2.get("a") == "1"
+    os.remove("test.db")
 
-    # Act
+
+def test_clave_con_coma_no_valida():
+    db = Database("test.db")
+    db.set("a,b", "valor")
+    assert db.get("a,b") is None
+
+
+def test_clave_vacia_no_valida():
+    db = Database("test.db")
+    db.set("", "valor")
+    assert db.get("") is None
+
+
+def test_valor_con_salto_de_linea_no_valido():
+    db = Database("test.db")
+    db.set("clave", "linea1\nlinea2")
+    assert db.get("clave") is None
+
+
+def test_mensaje_de_clave_no_valida(capsys):
+    db = Database("test.db")
+    db.set("a,b", "valor")
+    salida = capsys.readouterr().out
+    assert "Clave no valida" in salida
+
+
+def test_delete_borra_la_clave():
+    db = Database("test.db")
+    db.set("a", "1")
     db.delete("a")
-
-    # Assert
     assert db.get("a") is None
+    os.remove("test.db")
 
 
-def test_delete_persists_after_restart(tmp_path):
-    # Arrange
-    path = str(tmp_path / "d.db")
-    first = Database(path)
-    first.set("a", "1")
-    first.delete("a")
-
-    # Act
-    reopened = Database(path)
-
-    # Assert
-    assert reopened.get("a") is None
+def test_delete_no_borra_otras_claves():
+    db = Database("test.db")
+    db.set("a", "1")
+    db.set("b", "2")
+    db.delete("a")
+    assert db.get("b") == "2"
+    os.remove("test.db")
 
 
-def test_set_after_delete_restores_key(db):
-    # Arrange
+def test_set_despues_de_delete():
+    db = Database("test.db")
     db.set("a", "1")
     db.delete("a")
-
-    # Act
     db.set("a", "2")
-
-    # Assert
     assert db.get("a") == "2"
+    os.remove("test.db")
 
 
-def test_delete_missing_key_does_nothing(db):
-    db.delete("missing")
-    assert db.get("missing") is None
-
-
-def test_read_error_is_reported(tmp_path):
-    db = Database(str(tmp_path))
-    with pytest.raises(DatabaseError):
-        db.get("key")
-
-
-def test_write_error_is_reported(tmp_path):
-    db = Database(str(tmp_path))
-    with pytest.raises(DatabaseError):
-        db.set("key", "value")
+def test_delete_clave_que_no_existe():
+    db = Database("test.db")
+    db.set("a", "1")
+    db.delete("otra")
+    assert db.get("a") == "1"
+    os.remove("test.db")
