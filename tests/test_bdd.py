@@ -1,5 +1,5 @@
 import pytest
-from mydb.database import Database
+from mydb.database import Database, DatabaseError
 
 
 @pytest.fixture
@@ -8,15 +8,10 @@ def db(tmp_path):
     return Database(str(tmp_path / "test.db"))
 
 
-def test_set_and_get(db):
-    # Arrange
+def test_set_writes_to_file(db):
     db.set("theme", "dark")
-
-    # Act
-    result = db.get("theme")
-
-    # Assert
-    assert result == "dark"
+    with open(db.path, encoding="utf-8") as file:
+        assert file.read() == "theme,dark\n"
 
 
 def test_get_missing_key(db):
@@ -28,64 +23,31 @@ def test_get_missing_key(db):
 
 
 def test_overwrite_returns_last_value(db):
-    # Arrange
-    db.set("language", "spanish")
-    db.set("language", "english")
-
-    # Act
-    result = db.get("language")
-
-    # Assert
-    assert result == "english"
+    with open(db.path, "w", encoding="utf-8") as file:
+        file.write("language,spanish\nlanguage,english\n")
+    assert db.get("language") == "english"
 
 
 def test_value_with_commas(db):
-    # Arrange
-    db.set("list", "a,b,c")
-
-    # Act
-    result = db.get("list")
-
-    # Assert
-    assert result == "a,b,c"
+    with open(db.path, "w", encoding="utf-8") as file:
+        file.write("list,a,b,c\n")
+    assert db.get("list") == "a,b,c"
 
 
 def test_persistence_with_rebuild_index(tmp_path):
-    # Arrange: write with one instance
     path = str(tmp_path / "p.db")
     Database(path).set("a", "1")
-
-    # Act: a new instance simulates restarting the program
     reopened = Database(path)
-
-    # Assert
     assert reopened.get("a") == "1"
 
 
 def test_rebuild_index_with_accents_and_overwrite(tmp_path):
-    # Arrange
     path = str(tmp_path / "r.db")
-    db = Database(path)
-    db.set("x", "ñandú")
-    db.set("y", "2")
-    db.set("x", "3")
-
-    # Act
+    with open(path, "w", encoding="utf-8") as file:
+        file.write("x,ñandú\ny,2\nx,3\n")
     reopened = Database(path)
-
-    # Assert
     assert reopened.get("x") == "3"
     assert reopened.get("y") == "2"
-
-
-def test_indexed_get_matches_linear_get(db):
-    # Arrange
-    db.set("x", "ñandú")
-    db.set("y", "2")
-    db.set("x", "3")
-
-    # Act / Assert
-    assert db.get("x") == db.get_linear("x") == "3"
 
 
 @pytest.mark.parametrize("key", ["a,b", "", "a\nb"])
@@ -113,7 +75,6 @@ def test_delete_removes_key(db):
 
     # Assert
     assert db.get("a") is None
-    assert db.get_linear("a") is None
 
 
 def test_delete_persists_after_restart(tmp_path):
@@ -143,8 +104,17 @@ def test_set_after_delete_restores_key(db):
 
 
 def test_delete_missing_key_does_nothing(db):
-    # Act
     db.delete("missing")
-
-    # Assert
     assert db.get("missing") is None
+
+
+def test_read_error_is_reported(tmp_path):
+    db = Database(str(tmp_path))
+    with pytest.raises(DatabaseError):
+        db.get("key")
+
+
+def test_write_error_is_reported(tmp_path):
+    db = Database(str(tmp_path))
+    with pytest.raises(DatabaseError):
+        db.set("key", "value")

@@ -1,92 +1,51 @@
-import os
-
 TOMBSTONE = "__DELETED__"
 
 
+class DatabaseError(Exception):
+    """Raised when the database file cannot be read or written."""
+
+
 class Database:
-    """Plain-text key-value database (append-only log + in-memory index).
-
-    File format, one line per write:  key,value
-    - The key cannot be empty or contain ',' or newlines.
-    - The value cannot contain newlines (commas are allowed).
-    - The file is only ever appended to: lines are never edited or removed.
-    - If a key appears several times, the last line wins.
-    - Deleting a key appends a tombstone line:  key,__DELETED__
-
-    The index (self.index) is a dict:  key -> byte offset of its last line.
-    """
-
-    def __init__(self, path="data.db"):
+    def __init__(self, path: str = "data.db") -> None:
         self.path = path
-        self.index = {}
-        self.rebuild_index()
 
-    # writing 
-    def set(self, key, value):
-        """Append a 'key,value' line to the file and update the index."""
+    def set(self, key: str, value: str) -> None:
         self._validate_key(key)
         self._validate_value(value)
-        self.index[key] = self._append(key, value)
+        self._append(key, value)
 
-    def delete(self, key):
-        """Delete a key by appending a tombstone line (the log is never edited)."""
-        self._validate_key(key)
-        if key not in self.index:
-            return
-        self._append(key, TOMBSTONE)
-        del self.index[key]
-
-    #reading 
-    def get(self, key):
-        """Return the value for key (or None). Uses the index to jump straight to it."""
-        offset = self.index.get(key)
-        if offset is None:
-            return None
-        with open(self.path, "rb") as f:
-            f.seek(offset)
-            line = f.readline().decode("utf-8").rstrip("\n")
-        return line.split(",", 1)[1]
-
-    def get_linear(self, key):
-        """Same as get, but scanning the whole file (no index).
-
-        Useful to compare performance and to check that the index is correct.
-        """
+    def get(self, key: str) -> str | None:
         result = None
-        if not os.path.exists(self.path):
+        try:
+            with open(self.path, "r", encoding="utf-8") as file:
+                for line in file:
+                    stored_key, value = line.rstrip("\n").split(",", 1)
+                    if stored_key == key:
+                        result = None if value == TOMBSTONE else value
+        except FileNotFoundError:
             return None
-        with open(self.path, "r", encoding="utf-8") as f:
-            for line in f:
-                k, v = line.rstrip("\n").split(",", 1)
-                if k == key:
-                    result = v  # keep reading: the last occurrence wins
-        return None if result == TOMBSTONE else result
+        except OSError as error:
+            raise DatabaseError(f"Could not read database file: {self.path}") from error
+        return result
 
-       # index
-    def rebuild_index(self):
-        """Rebuild the index by reading the file (called on startup)."""
-        self.index = {}
-        if not os.path.exists(self.path):
-            return
-        offset = 0
-        with open(self.path, "rb") as f:
-            for line in f:
-                key, value = line.decode("utf-8").rstrip("\n").split(",", 1)
-                if value == TOMBSTONE:
-                    self.index.pop(key, None)
-                else:
-                    self.index[key] = offset
-                offset += len(line)  # bytes, not characters
+    def delete(self, key: str) -> None:
+        self._validate_key(key)
+        if self.get(key) is not None:
+            self._append(key, TOMBSTONE)
 
-    # helpers 
+    def _append(self, key: str, value: str) -> None:
+        try:
+            with open(self.path, "a", encoding="utf-8") as file:
+                file.write(f"{key},{value}\n")
+        except OSError as error:
+            raise DatabaseError(f"Could not write database file: {self.path}") from error
+
     @staticmethod
-    def _validate_key(key):
+    def _validate_key(key: str) -> None:
         if not key or "," in key or "\n" in key:
-            raise ValueError("Invalid key: empty, or contains ',' or a newline")
+            raise ValueError("Invalid key")
 
     @staticmethod
-    def _validate_value(value):
-        if "\n" in value:
-            raise ValueError("The value cannot contain newlines")
-        if value == TOMBSTONE:
-            raise ValueError(f"'{TOMBSTONE}' is a reserved value")
+    def _validate_value(value: str) -> None:
+        if "\n" in value or value == TOMBSTONE:
+            raise ValueError("Invalid value")
