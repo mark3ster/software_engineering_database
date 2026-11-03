@@ -1,51 +1,48 @@
-TOMBSTONE = "__DELETED__"
-
-
-class DatabaseError(Exception):
-    """Raised when the database file cannot be read or written."""
-
-
 class Database:
-    def __init__(self, path: str = "data.db") -> None:
+    def __init__(self, path="data.db"):
         self.path = path
 
-    def set(self, key: str, value: str) -> None:
-        self._validate_key(key)
-        self._validate_value(value)
-        self._append(key, value)
+    def set(self, key, value):
+        # no se permiten comas en la clave ni saltos de linea
+        if key == "" or "," in key or "\n" in key:
+            print("Clave no valida")
+            return
+        if "\n" in value:
+            print("Valor no valido")
+            return
 
-    def get(self, key: str) -> str | None:
+        # guardamos al final del archivo
+        f = open(self.path, "a")
+        f.write(key + "," + value + "\n")
+        f.close()
+
+    def get(self, key):
         result = None
         try:
-            with open(self.path, "r", encoding="utf-8") as file:
-                for line in file:
-                    stored_key, value = line.rstrip("\n").split(",", 1)
-                    if stored_key == key:
-                        result = None if value == TOMBSTONE else value
+            f = open(self.path, "r")
         except FileNotFoundError:
             return None
-        except OSError as error:
-            raise DatabaseError(f"Could not read database file: {self.path}") from error
+
+        # recorremos todo el archivo, nos quedamos con el ultimo valor
+        for line in f:
+            line = line.strip()
+            parts = line.split(",", 1)
+            if parts[0] == key:
+                result = parts[1]
+        f.close()
         return result
 
-    def delete(self, key: str) -> None:
-        self._validate_key(key)
-        if self.get(key) is not None:
-            self._append(key, TOMBSTONE)
-
-    def _append(self, key: str, value: str) -> None:
+    def delete(self, key):
         try:
-            with open(self.path, "a", encoding="utf-8") as file:
-                file.write(f"{key},{value}\n")
-        except OSError as error:
-            raise DatabaseError(f"Could not write database file: {self.path}") from error
+            f = open(self.path, "r")
+        except FileNotFoundError:
+            return
+        lines = f.readlines()
+        f.close()
 
-    @staticmethod
-    def _validate_key(key: str) -> None:
-        if not key or "," in key or "\n" in key:
-            raise ValueError("Invalid key")
-
-    @staticmethod
-    def _validate_value(value: str) -> None:
-        if "\n" in value or value == TOMBSTONE:
-            raise ValueError("Invalid value")
+        # reescribimos el archivo sin las lineas de esa clave
+        f = open(self.path, "w")
+        for line in lines:
+            if line.split(",", 1)[0] != key:
+                f.write(line)
+        f.close()
