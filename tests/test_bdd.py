@@ -104,3 +104,10 @@ def test_delete_clave_que_no_existe():
     db.delete("otra")
     assert db.get("a") == "1"
     os.remove("test.db")
+
+#new test issue 25
+def test_clave_con_espacios_al_inicio(tmp_path):
+    db = Database(str(tmp_path / "t.db"))
+    db.set("  a", "1")
+    assert db.get("  a") == "1"
+    assert db.get("a") is None
