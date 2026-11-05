@@ -1,4 +1,5 @@
 import os
+import pytest
 from mydb.database import Database
 
 
@@ -49,27 +50,29 @@ def test_guardar_y_abrir_otra_vez():
 
 def test_clave_con_coma_no_valida():
     db = Database("test.db")
-    db.set("a,b", "valor")
+    with pytest.raises(ValueError):
+        db.set("a,b", "valor")
     assert db.get("a,b") is None
 
 
 def test_clave_vacia_no_valida():
     db = Database("test.db")
-    db.set("", "valor")
+    with pytest.raises(ValueError):
+        db.set("", "valor")
     assert db.get("") is None
 
 
 def test_valor_con_salto_de_linea_no_valido():
     db = Database("test.db")
-    db.set("clave", "linea1\nlinea2")
+    with pytest.raises(ValueError):
+        db.set("clave", "linea1\nlinea2")
     assert db.get("clave") is None
 
 
-def test_mensaje_de_clave_no_valida(capsys):
+def test_delete_clave_con_coma_no_valida():
     db = Database("test.db")
-    db.set("a,b", "valor")
-    salida = capsys.readouterr().out
-    assert "Clave no valida" in salida
+    with pytest.raises(ValueError):
+        db.delete("a,b")
 
 
 def test_delete_borra_la_clave():
