@@ -1,49 +1,70 @@
 class Database:
     def __init__(self, path="data.db"):
         self.path = path
+        self.index = {}  # key -> position of its line
+        self.rebuild_index()
+
+
+    def rebuild_index(self):
+        self.index = {}
+        try:
+            f = open(self.path, "r", encoding="utf-8")
+        except FileNotFoundError:
+            return
+
+        # tell() does not work with "for line in f", so we use readline()
+        position = 0
+        line = f.readline()
+        while line != "":
+            line = line.rstrip("\n")
+            if "," in line:
+                key, value = line.split(",", 1)
+                if value == "__DELETED__":
+                    if key in self.index:
+                        del self.index[key]
+                else:
+                    self.index[key] = position
+            position = f.tell()
+            line = f.readline()
+        f.close()
 
     def set(self, key, value):
-        # no se permiten comas en la clave ni saltos de linea
         if key == "" or "," in key or "\n" in key:
-            raise ValueError("Clave no valida")
-        if "\n" in value:
-            raise ValueError("Valor no valido")
+            raise ValueError("Invalid key")
+        if "\n" in value or value == "__DELETED__":
+            raise ValueError("Invalid value")
 
-        # guardamos al final del archivo
-        f = open(self.path, "a")
+        f = open(self.path, "a", encoding="utf-8")
+        position = f.tell()
         f.write(key + "," + value + "\n")
         f.close()
+        self.index[key] = position
 
     def get(self, key):
         result = None
-        try:
-            f = open(self.path, "r")
-        except FileNotFoundError:
-            return None
-
-        # recorremos todo el archivo, nos quedamos con el ultimo valor
-        for line in f:
-            line = line.rstrip("\n") #solo quitamos el salto de linea, no los espacios de la clave
-            parts = line.split(",", 1)
-            if len(parts) == 2 and parts[0] == key: #len(parts) == 2 evita un IndexError si hubiera una línea vacía o corrupta
-                result = parts[1]
-        f.close()
+        if key in self.index:
+            f = open(self.path, "r", encoding="utf-8")
+            f.seek(self.index[key])
+            line = f.readline()
+            f.close()
+            line = line.rstrip("\n")
+            result = line.split(",", 1)[1]
         return result
 
     def delete(self, key):
         if key == "" or "," in key or "\n" in key:
-            raise ValueError("Clave no valida")
+            raise ValueError("Invalid key")
 
-        try:
-            f = open(self.path, "r")
-        except FileNotFoundError:
-            return
-        lines = f.readlines()
-        f.close()
+        # the file is append-only, so we add a line that says it is deleted
+        if key in self.index:
+            f = open(self.path, "a", encoding="utf-8")
+            f.write(key + ",__DELETED__\n")
+            f.close()
+            del self.index[key]
 
-        # reescribimos el archivo sin las lineas de esa clave
-        f = open(self.path, "w")
-        for line in lines:
-            if line.split(",", 1)[0] != key:
-                f.write(line)
-        f.close()
+
+    def list(self):
+        result = {}
+        for key in self.index:
+            result[key] = self.get(key)
+        return result
