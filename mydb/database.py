@@ -25,9 +25,9 @@ class Database:
 
         # recorremos todo el archivo, nos quedamos con el ultimo valor
         for line in f:
-            line = line.strip()
+            line = line.rstrip("\n") #solo quitamos el salto de linea, no los espacios de la clave
             parts = line.split(",", 1)
-            if parts[0] == key:
+            if len(parts) == 2 and parts[0] == key: #len(parts) == 2 evita un IndexError si hubiera una línea vacía o corrupta
                 result = parts[1]
         f.close()
         return result
