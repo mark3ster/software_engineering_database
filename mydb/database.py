@@ -5,11 +5,9 @@ class Database:
     def set(self, key, value):
         # no se permiten comas en la clave ni saltos de linea
         if key == "" or "," in key or "\n" in key:
-            print("Clave no valida")
-            return
+            raise ValueError("Clave no valida")
         if "\n" in value:
-            print("Valor no valido")
-            return
+            raise ValueError("Valor no valido")
 
         # guardamos al final del archivo
         f = open(self.path, "a")
@@ -33,6 +31,9 @@ class Database:
         return result
 
     def delete(self, key):
+        if key == "" or "," in key or "\n" in key:
+            raise ValueError("Clave no valida")
+
         try:
             f = open(self.path, "r")
         except FileNotFoundError:
