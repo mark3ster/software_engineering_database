@@ -85,6 +85,10 @@ No commit should be pushed if a test fails. GitHub Actions runs the tests on eve
 - Not safe with several processes writing at the same time.
 - There is no command line, it only works from Python.
 
+## Requirements
+
+Requirements from customer feedback are in the [Product Backlog](backlog.md).
+
 ## Authors
 
 - Daniel Cals
