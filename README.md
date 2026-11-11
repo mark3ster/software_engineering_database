@@ -49,6 +49,10 @@ No commit should be pushed if a test fails. GitHub Actions runs the tests on eve
 - All keys must fit in memory.
 - Not safe with several processes writing at the same time.
 
+## Requirements
+
+Requirements from customer feedback are in the [Product Backlog](backlog.md).
+
 ## Authors
 
 - Daniel Cals
