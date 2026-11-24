@@ -1,14 +1,15 @@
 class Database:
     def __init__(self, path="data.db"):
         self.path = path
-        self.index = {}  # key -> position of its line
+        self.index = {}  # key
         self.rebuild_index()
 
 
     def rebuild_index(self):
         self.index = {}
         try:
-            f = open(self.path, "r", encoding="utf-8")
+            # newline="\n" so a line break is always 1 byte
+            f = open(self.path, "r", encoding="utf-8", newline="\n")
         except FileNotFoundError:
             return
 
@@ -34,7 +35,7 @@ class Database:
         if "\n" in value or value == "__DELETED__":
             raise ValueError("Invalid value")
 
-        f = open(self.path, "a", encoding="utf-8")
+        f = open(self.path, "a", encoding="utf-8", newline="\n")
         position = f.tell()
         f.write(key + "," + value + "\n")
         f.close()
@@ -43,7 +44,7 @@ class Database:
     def get(self, key):
         result = None
         if key in self.index:
-            f = open(self.path, "r", encoding="utf-8")
+            f = open(self.path, "r", encoding="utf-8", newline="\n")
             f.seek(self.index[key])
             line = f.readline()
             f.close()
@@ -57,7 +58,7 @@ class Database:
 
         # the file is append-only, so we add a line that says it is deleted
         if key in self.index:
-            f = open(self.path, "a", encoding="utf-8")
+            f = open(self.path, "a", encoding="utf-8", newline="\n")
             f.write(key + ",__DELETED__\n")
             f.close()
             del self.index[key]

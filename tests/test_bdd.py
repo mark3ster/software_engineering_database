@@ -192,7 +192,7 @@ def test_rebuild_index_empty_file(path):
 
 
 def test_rebuild_index_ignores_empty_lines(path):
-    f = open(path, "w", encoding="utf-8")
+    f = open(path, "w", encoding="utf-8", newline="\n")
     f.write("a,1\n\nb,2\nbroken line\nc,3\n")
     f.close()
     db = Database(path)
