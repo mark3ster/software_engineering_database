@@ -89,6 +89,14 @@ No commit should be pushed if a test fails. GitHub Actions runs the tests on eve
 
 Requirements from customer feedback are in the [Product Backlog](backlog.md).
 
+### Maximum segment size
+
+* The maximum size of a segment is **1048576 bytes (1 MiB)**.
+* If a write does not fit in the current segment, the segment is closed
+  and the write goes to a new one.
+* The size is measured in bytes. Files use `newline="\n"`, so a line break
+  is 1 byte in every operating system.
+
 ## Authors
 
 - Daniel Cals
